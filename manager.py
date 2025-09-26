@@ -1,6 +1,7 @@
-from ableton.v2.control_surface import ControlSurface
 
+from ableton.v2.control_surface import ControlSurface
 from . import abletonosc
+from .custom_handlers import arm_track_solo_handler, parse_multi_arg_handler
 
 import importlib
 import traceback
@@ -81,24 +82,6 @@ class Manager(ControlSurface):
         except Exception as e:
             logger.error(f"parse_multi_arg_handler error: {e}")
         return ()
-    def arm_track_solo_handler(self, params):
-        """
-        Custom handler for /arm_track_solo: disarm tracks 0-7, arm the specified track.
-        """
-        track_id = int(params[0])
-        for i in range(8):
-            try:
-                if i != track_id:
-                    self.song.tracks[i].arm = False
-            except Exception:
-                pass
-        try:
-            self.song.tracks[track_id].arm = True
-        except Exception:
-            pass
-        return ()
-
-
     def __init__(self, c_instance):
         ControlSurface.__init__(self, c_instance)
 
@@ -146,7 +129,12 @@ class Manager(ControlSurface):
                 alias_type = alias_cfg.get("type", "simple")
                 if alias_type == "custom":
                     handler_name = alias_cfg.get("handler")
-                    handler_func = getattr(self, handler_name, None)
+                    # Map handler names to imported functions
+                    handler_func = None
+                    if handler_name == "arm_track_solo_handler":
+                        handler_func = lambda params: arm_track_solo_handler(self, params)
+                    elif handler_name == "parse_multi_arg_handler":
+                        handler_func = lambda params: parse_multi_arg_handler(self, params)
                     if handler_func:
                         self.osc_server.add_handler(alias_addr, handler_func)
                         logger.info(f"Registered custom handler for {alias_addr}: {handler_name}")

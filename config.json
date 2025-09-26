@@ -12,8 +12,7 @@
     ,
     "/parse_multi_arg": {
       "type": "custom",
-      "handler": "parse_multi_arg_handler",
-      "target": "/live/track/volume"
+      "handler": "parse_multi_arg_handler"
     }
   }
 }

@@ -86,19 +86,6 @@ class OSCServer:
 
     def process_message(self, message, remote_addr):
         # Check for alias first
-        if hasattr(self, 'handle_alias') and hasattr(self, 'osc_aliases') and message.address in getattr(self, 'osc_aliases', {}):
-            alias_result = self.handle_alias(message.address, message.params)
-            if alias_result:
-                target_address, new_params = alias_result
-                if target_address in self._callbacks:
-                    callback = self._callbacks[target_address]
-                    rv = callback(new_params)
-                    if rv is not None:
-                        assert isinstance(rv, tuple)
-                        remote_hostname, _ = remote_addr
-                        response_addr = (remote_hostname, self._response_port)
-                        self.send(address=target_address, params=rv, remote_addr=response_addr)
-                    return
         # Normal handler logic
         if message.address in self._callbacks:
             callback = self._callbacks[message.address]

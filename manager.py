@@ -11,77 +11,6 @@ import os
 logger = logging.getLogger("abletonosc")
 
 class Manager(ControlSurface):
-    def parse_multi_arg_handler(self, params):
-        """
-        Custom handler for /parse_multi_arg: expects a single string param in the form:
-        "[osc command] <arg1> <arg2> <arg3>..."
-        Each arg can have a type indicator suffix: (i) for int, (f) for float, (s) for string.
-        If no type indicator, will infer type: int if possible, else float, else string.
-        Example: "/live/track/volume 0(i) 0.8(f)" or "/live/track/name 1 Hello(s)"
-        """
-        import re
-        if not params or not isinstance(params[0], str):
-            logger.warning("parse_multi_arg_handler: Expected a single string param.")
-            return ()
-        input_str = params[0].strip()
-        if not input_str:
-            logger.warning("parse_multi_arg_handler: Empty input string.")
-            return ()
-        # Split into command and args
-        parts = input_str.split()
-        if not parts:
-            logger.warning("parse_multi_arg_handler: No command found in input string.")
-            return ()
-        target = parts[0]
-        arg_strs = parts[1:]
-        parsed_args = []
-        type_re = re.compile(r"^(.*?)(\((i|f|s|b)\))?$")
-        for arg in arg_strs:
-            m = type_re.match(arg)
-            if not m:
-                parsed_args.append(arg)
-                continue
-            val, _, typ = m.groups()
-            val = val.strip()
-            if typ == 'i':
-                try:
-                    parsed_args.append(int(val))
-                except Exception:
-                    parsed_args.append(val)
-            elif typ == 'f':
-                try:
-                    parsed_args.append(float(val))
-                except Exception:
-                    parsed_args.append(val)
-            elif typ == 's':
-                parsed_args.append(val)
-            elif typ == 'b':
-                # Only treat as boolean if (b) is present
-                if val.lower() in ('true', 'yes', 'on'):
-                    parsed_args.append(True)
-                elif val.lower() in ('false', 'no', 'off'):
-                    parsed_args.append(False)
-                elif val == '1':
-                    parsed_args.append(True)
-                elif val == '0':
-                    parsed_args.append(False)
-                else:
-                    parsed_args.append(bool(val))
-            else:
-                # Infer type: int, then float, then string (do not treat 1/0 as bool)
-                try:
-                    parsed_args.append(int(val))
-                except Exception:
-                    try:
-                        parsed_args.append(float(val))
-                    except Exception:
-                        parsed_args.append(val)
-        logger.info(f"parse_multi_arg_handler: Forwarding to {target} with args {parsed_args}")
-        try:
-            self.osc_server.send(target, tuple(parsed_args))
-        except Exception as e:
-            logger.error(f"parse_multi_arg_handler error: {e}")
-        return ()
     def __init__(self, c_instance):
         ControlSurface.__init__(self, c_instance)
 
@@ -122,7 +51,6 @@ class Manager(ControlSurface):
             self.osc_server = abletonosc.OSCServer()
             # Patch the OSCServer to support aliasing
             self.osc_server.osc_aliases = {}
-            self.osc_server.handle_alias = self.handle_osc_alias
 
             # Register all aliases from config.json
             for alias_addr, alias_cfg in self.osc_aliases.items():
@@ -156,35 +84,6 @@ class Manager(ControlSurface):
             self.show_message("AbletonOSC: Couldn't bind to port %d (%s)" % (abletonosc.OSC_LISTEN_PORT, msg))
             logger.info("Couldn't bind to port %d (%s)" % (abletonosc.OSC_LISTEN_PORT, msg))
 
-    def handle_osc_alias(self, address, params):
-        """
-        If the address matches an alias, transform the params and return (target_address, new_params), else None.
-        Adds detailed debug logging for troubleshooting.
-        """
-        alias = self.osc_aliases.get(address)
-        logger = logging.getLogger("abletonosc.alias")
-        if not alias:
-            logger.debug(f"[ALIAS] No alias found for address: {address}")
-            return None
-        target = alias.get("target")
-        args_template = alias.get("args", [])
-        logger.debug(f"[ALIAS] Matched alias: {address} → {target} | args template: {args_template} | incoming params: {params}")
-        new_args = []
-        for i, arg in enumerate(args_template):
-            if isinstance(arg, str) and arg.startswith("$"):
-                try:
-                    idx = int(arg[1:]) - 1
-                    val = params[idx]
-                    logger.debug(f"[ALIAS] Substituting {arg} with param[{idx}] = {val}")
-                    new_args.append(val)
-                except Exception as e:
-                    logger.debug(f"[ALIAS] Failed to substitute {arg}: {e}")
-                    new_args.append(None)
-            else:
-                logger.debug(f"[ALIAS] Using static arg: {arg}")
-                new_args.append(arg)
-        logger.debug(f"[ALIAS] Final args for {target}: {new_args}")
-        return (target, tuple(new_args))
 
 
     def start_logging(self):
